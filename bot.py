@@ -1,7 +1,10 @@
 #bot.py
 import os
 import discord
+import redis
 from discord.ext import commands
+#from discord.ext.commands import has_permission
+import boto3
 
 #for sports data
 from sportsreference.nba.teams import Teams
@@ -10,7 +13,12 @@ from sportsreference.nba.schedule import Schedule
 #for rss feeds
 import feedparser
 
+
 bot = commands.Bot(command_prefix='$', description='A bot that does a little bit of everything')
+
+redis_server = redis.Redis() #Create access to Redis
+
+DISCORD_BOT_TOKEN = str(redis_server.get('DISCORD_BOT_TOKEN').decode('utf-8'))
 
 @bot.event
 async def on_ready():
@@ -98,5 +106,28 @@ async def rss_feed(ctx, url):
         link = item.link
         await ctx.send((name,link))
 
-bot.run(os.environ.get('DISCORD_BOT_TOKEN'))
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def s3_list(ctx):
+    s3 = boto3.client('s3')
+    response = s3.list_buckets()
+
+    print('Existing buckets:')
+    for bucket in response['Buckets']:
+       print(f'  {bucket["Name"]}')
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def deploy_cloudformation(ctx):
+    client = boto3.client('cloudformation')
+    response = client.create_stack(
+        StackName="test",
+        TemplateURL='https://wireguardcf.s3-us-west-2.amazonaws.com/WireguardNetwork',
+        
+    )
+    print(response)
+
+
+bot.run(DISCORD_BOT_TOKEN)
+
 
